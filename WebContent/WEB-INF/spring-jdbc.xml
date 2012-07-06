@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+	
+
+	<bean id="mysqlDataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+        <property name="url" value="jdbc:mysql://localhost:3306/WFMS?autoReconnect=true"/>
+        <property name="username" value="root"/>
+        <property name="password" value="toor"/>
+    </bean>
+
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="mysqlDataSource" />
+	</bean>
+	
+	<bean id="filesDaoImpl" class="com.wfms.dao.impl.FilesDaoImpl" init-method="initJdbcTemplate">
+        <property name="dataSource" ref="mysqlDataSource"/>
+        <property name="saveFileQuery" value="insert into files (node_id, file_name, file_desc, file_type, file_content, last_modified, owner_name) values (?, ?, ?, ?, ?, ?, ?)"/>
+        <property name="listFilesQuery" value="select * from files where node_id = ?"/>
+        <property name="deleteFileQuery" value="delete from files where file_id = ?"/>
+        <property name="downloadFileQuery" value="select * from files where file_id = ?"/>
+        <property name="usersQuery" value="select * from users"/>
+    </bean>
+    
+    <bean id="directoryDaoImpl" class="com.wfms.dao.impl.DirectoryDaoImpl" init-method="initJdbcTemplate">
+        <property name="directoryStructureQuery" value="SELECT node.node_name, node.node_id, node.lft, node.rgt, node.user_name, node.node_name, (COUNT(parent.node_id) - 1) AS depth FROM directory_structure AS node, directory_structure AS parent WHERE node.lft BETWEEN parent.lft AND parent.rgt and parent.user_name = ? and node.user_name = ? GROUP BY node.node_id, parent.user_name ORDER BY node.lft;"/>
+        <property name="nodeLeftForInsertQuery" value="SELECT lft FROM directory_structure WHERE node_id = ?;" />
+        <property name="nodeRightForInsertQuery" value="SELECT rgt FROM directory_structure WHERE node_id = ?;" />
+        <property name="updateRightForInsertQuery" value="UPDATE directory_structure SET rgt = rgt + 2 WHERE rgt > ? and user_name = ?;"/>
+        <property name="updateLeftForInsertQuery" value="UPDATE directory_structure SET lft = lft + 2 WHERE lft > ? and user_name = ?; "/>
+        <property name="insertNodeQuery" value="INSERT INTO directory_structure(node_name, user_name, lft, rgt) VALUES( ?, ?, ?, ?);"/>
+        <property name="selectForDeleteQuery" value="SELECT lft, rgt FROM directory_structure WHERE node_id = ? and user_name = ?;"/>
+        <property name="deleteNodeQuery" value="DELETE FROM directory_structure WHERE lft BETWEEN ? AND ? and user_name = ?"/>
+        <property name="updateRightForDeleteQuery" value="UPDATE directory_structure SET rgt = rgt - ? WHERE rgt > ? and user_name = ?"/>
+        <property name="updateLeftForDeleteQuery" value="UPDATE directory_structure SET lft = lft - ? WHERE lft > ? and user_name = ?"/>
+    	<property name="renameNodeQuery" value="UPDATE directory_structure SET node_name = ? WHERE node_id= ?;"/>	
+    	<property name="depthOfNodeQuery" value="SELECT (COUNT(parent.node_name) - 1) AS depth  FROM directory_structure AS node, directory_structure AS parent WHERE node.lft BETWEEN parent.lft AND parent.rgt AND node.node_id = ? and parent.user_name = ? and node.user_name = ? GROUP BY node.node_name ORDER BY node.lft"/>
+    	<property name="nodesBelowQuery" value="SELECT * FROM (SELECT  node.node_name, node.node_id, node.lft, node.rgt, (COUNT(parent.node_name) - 1) AS depth FROM directory_structure AS node,directory_structure AS parent, shared_nodes as shared WHERE node.lft BETWEEN parent.lft AND parent.rgt AND parent.user_name = shared.owner_name and node.user_name = shared.owner_name and shared.node_id = ? GROUP BY node.node_name ORDER BY node.lft ) AS sub_tree where sub_tree.lft >= ? and sub_tree.rgt &lt; ? Or sub_tree.rgt = ?"/>																				
+    	<property name="sharedNodesQuery" value="Select * from shared_nodes where user_name = ?" />
+    	<property name="insertSharedNodeQuery" value="insert into shared_nodes (node_id, user_name, owner_name)	values ( ?, ?, ?)"/>
+    </bean>
+    
+	
+	
+</beans>
